@@ -81,7 +81,7 @@ class LeetcodeSession():
                     "topicId": i["node"]["id"],
                     "title": i["node"]["title"],
                     "viewCount": i["node"]["viewCount"],
-                    "tags": i["node"]["tags"],
+                    "tags": [tag["name"] for tag in i["node"]["tags"]],
                     "post": i["node"]["post"]["id"]
                 } for i in data["data"]["questionTopicsList"]["edges"]]
         return data
