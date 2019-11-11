@@ -2,6 +2,7 @@ import requests
 import math
 from database import database, save_discussions, is_question_done, save_posts
 import itertools
+import time
 
 INF = 2**31 - 1
 flatten = itertools.chain.from_iterable
@@ -42,39 +43,44 @@ class LeetcodeSession():
 
     def get_problem_discussion(self, problem):
         print("Querying problem " + problem[1])
-        discussion = self.client.post(self.graphql, json={
-            "operationName": "questionTopicsList",
-            "variables": {"questionId": problem[0], "first": INF},  # FIXME: a dirty hack to graphql pagination
-            "query": 
-                """
-                    query questionTopicsList($questionId: String!, $orderBy: TopicSortingOption, $skip: Int, $query: String, $first: Int!, $tags: [String!]) {
-                        questionTopicsList(questionId: $questionId, orderBy: $orderBy, skip: $skip, query: $query, first: $first, tags: $tags) {
-                            ...TopicsList
+        while True:
+            discussion = self.client.post(self.graphql, json={
+                "operationName": "questionTopicsList",
+                "variables": {"questionId": problem[0], "first": INF},  # FIXME: a dirty hack to graphql pagination
+                "query": 
+                    """
+                        query questionTopicsList($questionId: String!, $orderBy: TopicSortingOption, $skip: Int, $query: String, $first: Int!, $tags: [String!]) {
+                            questionTopicsList(questionId: $questionId, orderBy: $orderBy, skip: $skip, query: $query, first: $first, tags: $tags) {
+                                ...TopicsList
+                            }
                         }
-                    }
 
-                    fragment TopicsList on TopicConnection {
-                        totalNum
-                        edges {
-                            node {
-                                id
-                                title
-                                viewCount
-                                tags {
-                                    name
-                                }
-                                post {
+                        fragment TopicsList on TopicConnection {
+                            totalNum
+                            edges {
+                                node {
                                     id
+                                    title
+                                    viewCount
+                                    tags {
+                                        name
+                                    }
+                                    post {
+                                        id
+                                    }
                                 }
                             }
                         }
-                    }
 
-                """
-        }, headers={
-            "Referer": "https://leetcode.com/",
-            "x-csrftoken": self.client.cookies["csrftoken"]
-        })
+                    """
+            }, headers={
+                "Referer": "https://leetcode.com/",
+                "x-csrftoken": self.client.cookies["csrftoken"]
+            })
+            if discussion.status_code < 500:
+                break
+            else:
+                time.sleep(1)
         data = discussion.json()
         data = [{
                     "questionId": problem[0],
@@ -88,70 +94,17 @@ class LeetcodeSession():
 
     def get_discussion_posts(self, topic_id):
         res = []  # FIXME: an ugly impl
-        parent = self.client.post(self.graphql, json={
-            "operationName": "DiscussTopic", 
-            "variables": {"topicId": topic_id},
-            "query":
-            """
-            query DiscussTopic($topicId: Int!) {
-                topic(id: $topicId) {
-                    topLevelCommentCount
-                    post {
-                    ...DiscussPost
-                    }
-                }
-                }
-
-                fragment DiscussPost on PostNode {
-                    id
-                    voteCount
-                    content
-                    updationDate
-                    creationDate
-                    author {
-                        username
-                        profile {
-                        reputation
-                        }
-                    }
-                }
-            """
-        }, headers={
-            "Referer": "https://leetcode.com/",
-            "x-csrftoken": self.client.cookies["csrftoken"]
-        })
-        if parent.status_code != 200:
-            print("`parent` Response code %d." % parent.status_code)
-            print("Server returns: " + parent.text)
-            exit(-1)
-        parent = parent.json()
-        comment_cnt = parent["data"]["topic"]["topLevelCommentCount"]
-        parent = parent["data"]["topic"]["post"]
-        parent = {
-            "parent": -1,
-            "id": parent["id"], 
-            "content": parent["content"],
-            "voteCount": parent["voteCount"],
-            "creationDate": parent["creationDate"],
-            "updationDate": parent["updationDate"],
-            "author": parent["author"]["username"],
-            "authorReputation": parent["author"]["profile"]["reputation"],
-        }
-        res = [parent]
-        if (comment_cnt > 0):
-            comments = self.client.post(self.graphql, json={
-                "operationName": "discussComments", 
-                "variables": {"orderBy": "best", "pageNo": 1, "numPerPage": INF, "topicId": topic_id},
+        while True:
+            parent = self.client.post(self.graphql, json={
+                "operationName": "DiscussTopic", 
+                "variables": {"topicId": topic_id},
                 "query":
                 """
-                query discussComments($topicId: Int!, $orderBy: String, $pageNo: Int = 1, $numPerPage: Int = 10) {
-                    topicComments(topicId: $topicId, orderBy: $orderBy, pageNo: $pageNo, numPerPage: $numPerPage) {
-                        data {
-                            id
-                            post {
-                                ...DiscussPost
-                            }
-                            numChildren
+                query DiscussTopic($topicId: Int!) {
+                    topic(id: $topicId) {
+                        topLevelCommentCount
+                        post {
+                        ...DiscussPost
                         }
                     }
                     }
@@ -174,6 +127,71 @@ class LeetcodeSession():
                 "Referer": "https://leetcode.com/",
                 "x-csrftoken": self.client.cookies["csrftoken"]
             })
+            if parent.status_code < 500:
+                break
+            else:
+                print("`parent` Retrying...")
+                time.sleep(1)
+        if parent.status_code != 200:
+            print("`parent` Response code %d." % parent.status_code)
+            print("Server returns: " + parent.text)
+            exit(-1)
+        parent = parent.json()
+        comment_cnt = parent["data"]["topic"]["topLevelCommentCount"]
+        parent = parent["data"]["topic"]["post"]
+        parent = {
+            "parent": -1,
+            "id": parent["id"], 
+            "content": parent["content"],
+            "voteCount": parent["voteCount"],
+            "creationDate": parent["creationDate"],
+            "updationDate": parent["updationDate"],
+            "author": parent["author"]["username"],
+            "authorReputation": parent["author"]["profile"]["reputation"],
+        }
+        res = [parent]
+        if (comment_cnt > 0):
+            while True:
+                comments = self.client.post(self.graphql, json={
+                    "operationName": "discussComments", 
+                    "variables": {"orderBy": "best", "pageNo": 1, "numPerPage": INF, "topicId": topic_id},
+                    "query":
+                    """
+                    query discussComments($topicId: Int!, $orderBy: String, $pageNo: Int = 1, $numPerPage: Int = 10) {
+                        topicComments(topicId: $topicId, orderBy: $orderBy, pageNo: $pageNo, numPerPage: $numPerPage) {
+                            data {
+                                id
+                                post {
+                                    ...DiscussPost
+                                }
+                                numChildren
+                            }
+                        }
+                        }
+
+                        fragment DiscussPost on PostNode {
+                            id
+                            voteCount
+                            content
+                            updationDate
+                            creationDate
+                            author {
+                                username
+                                profile {
+                                reputation
+                                }
+                            }
+                        }
+                    """
+                }, headers={
+                    "Referer": "https://leetcode.com/",
+                    "x-csrftoken": self.client.cookies["csrftoken"]
+                })
+                if comments.status_code < 500:
+                    break
+                else:
+                    print("`comments` Retrying...")
+                    time.sleep(1)
             if comments.status_code != 200:
                 print("`comments` Response code %d." % comments.status_code)
                 print("Server returns: " + comments.text)
@@ -194,40 +212,46 @@ class LeetcodeSession():
                 res.append(comment)
                 replies_cnt = i["numChildren"]
                 if replies_cnt > 0:
-                    replies = self.client.post(self.graphql, json={
-                        "operationName": "fetchCommentReplies", 
-                        "variables": {"commentId": i["id"]},
-                        "query":
-                        """
-                        query fetchCommentReplies($commentId: Int!) {
-                            commentReplies(commentId: $commentId) {
+                    while True:
+                        replies = self.client.post(self.graphql, json={
+                            "operationName": "fetchCommentReplies", 
+                            "variables": {"commentId": i["id"]},
+                            "query":
+                            """
+                            query fetchCommentReplies($commentId: Int!) {
+                                commentReplies(commentId: $commentId) {
+                                    id
+                                    post {
+                                    ...DiscussPost
+                                    }
+
+                                }
+                                }
+
+                                fragment DiscussPost on PostNode {
                                 id
-                                post {
-                                ...DiscussPost
+                                voteCount
+                                content
+                                updationDate
+                                creationDate
+                                author {
+                                    username
+                                    profile {
+                                    reputation
+                                    }
+                                }
                                 }
 
-                            }
-                            }
-
-                            fragment DiscussPost on PostNode {
-                            id
-                            voteCount
-                            content
-                            updationDate
-                            creationDate
-                            author {
-                                username
-                                profile {
-                                reputation
-                                }
-                            }
-                            }
-
-                        """
-                    }, headers={
-                        "Referer": "https://leetcode.com/",
-                        "x-csrftoken": self.client.cookies["csrftoken"]
-                    })
+                            """
+                        }, headers={
+                            "Referer": "https://leetcode.com/",
+                            "x-csrftoken": self.client.cookies["csrftoken"]
+                        })
+                        if replies.status_code < 500:
+                            break
+                        else:
+                            print("`replies` Retrying...")
+                            time.sleep(1)
                     if replies.status_code != 200:
                         print("`replies` Response code %d." % replies.status_code)
                         print("Server returns: " + replies.text)
