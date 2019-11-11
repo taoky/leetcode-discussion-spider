@@ -120,6 +120,9 @@ class LeetcodeSession():
             "Referer": "https://leetcode.com/",
             "x-csrftoken": self.client.cookies["csrftoken"]
         })
+        if parent.status_code != 200:
+            print("`parent` returns code %d. Exiting..." % parent.status_code)
+            exit(-1)
         parent = parent.json()
         comment_cnt = parent["data"]["topic"]["topLevelCommentCount"]
         parent = parent["data"]["topic"]["post"]
@@ -243,14 +246,15 @@ def main():
     plist = ls.get_all_problems()
 
     print("Get %d problems." % len(plist))
-    print(database.session)
     for i in plist:
         if is_question_done(i[0]):
             # if questionId exists
-            # print("Skipped problem %d." % i[0])
+            print("Skipped problem %d." % i[0])
             continue
+        print("Getting discussions of problem %d." % i[0])
         discussions = ls.get_problem_discussion(i)
         save_discussions(discussions)
+        print("Getting posts of discussions of problem %d." % i[0])
         posts = [ls.get_discussion_posts(i["topicId"]) for i in discussions]
         posts = list(flatten(posts))
         save_posts(posts, i[0])

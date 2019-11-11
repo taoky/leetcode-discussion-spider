@@ -32,6 +32,8 @@ class Post(Base):
     solution_code = Column(String)
     questionId = Column(Integer)  # not for lab requirement, but for less network requests
 
+Base.metadata.create_all(engine)
+
 class Database():
     def __init__(self):
         self.Session = sessionmaker(bind=engine)
@@ -41,34 +43,34 @@ database = Database()
 
 def save_discussions(topics):
     for i in topics:
-        if database.session.query(Topic).filter(Topic.questionId == i.questionId, Topic.topicId == i.topicId):
-            topic = Topic(questionId=i.questionId,
-                        topicId=i.topicId,
-                        title=i.title,
-                        viewCount=i.viewCount,
-                        tags=repr(i.tags),
-                        post=i.post)
+        if not database.session.query(Topic).filter_by(questionId=i["questionId"], topicId=i["topicId"]).first():
+            topic = Topic(questionId=i["questionId"],
+                        topicId=i["topicId"],
+                        title=i["title"],
+                        viewCount=i["viewCount"],
+                        tags=repr(i["tags"]),
+                        post=i["post"])
             database.session.add(topic)
     database.session.commit()
 
 def save_posts(posts, questionId):
     for i in posts:
-        if database.session.query(Post).filter(Post.id == i.id):
-            post = Post(parent=posts.parent,
-                        id=posts.id,
-                        content=posts.content,
-                        voteCount=posts.voteCount,
-                        creationDate=posts.creationDate,
-                        updationDate=posts.updationDate,
-                        author=posts.author,
-                        authorReputation=posts.authorReputation,
-                        solution_language=posts.solution_language,
-                        solution_code=posts.solution_code,
+        if not database.session.query(Post).filter_by(id=i["id"]).first():
+            post = Post(parent=i["parent"],
+                        id=i["id"],
+                        content=i["content"],
+                        voteCount=i["voteCount"],
+                        creationDate=i["creationDate"],
+                        updationDate=i["updationDate"],
+                        author=i["author"],
+                        authorReputation=i["authorReputation"],
+                        solution_language=None,
+                        solution_code=None,
                         questionId=questionId)
             database.session.add(post)
     database.session.commit()
 
 def is_question_done(questionId):
-    if database.session.query(Topic).filter(Topic.questionId == questionId) and database.session.query(Post).filter(Post.questionId == questionId):
+    if database.session.query(Topic).filter_by(questionId=questionId).first() and database.session.query(Post).filter_by(questionId=questionId).first():
         return True
     return False
