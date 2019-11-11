@@ -1,4 +1,5 @@
 import requests
+import math
 
 class LeetcodeSession():
     def __init__(self, username, password):
@@ -39,7 +40,7 @@ class LeetcodeSession():
         print("Querying problem " + problem[1])
         discussion = self.client.post(self.graphql, json={
             "operationName": "questionTopicsList",
-            "variables": {"questionId": problem[0], "first": 9999999},
+            "variables": {"questionId": problem[0], "first": 2**31-1},  # FIXME: a dirty hack to graphql pagination
             "query": 
                 """
                     query questionTopicsList($questionId: String!, $orderBy: TopicSortingOption, $skip: Int, $query: String, $first: Int!, $tags: [String!]) {
@@ -67,7 +68,7 @@ class LeetcodeSession():
 
                 """
         }, headers={
-            "Referer": "https://leetcode.com/problems/" + problem[1] + "/discuss/",
+            "Referer": "https://leetcode.com/",
             "x-csrftoken": self.client.cookies["csrftoken"]
         })
         data = discussion.json()
@@ -79,13 +80,68 @@ class LeetcodeSession():
                     "tags": i["node"]["tags"],
                     "post": i["node"]["post"]["id"]
                 } for i in data["data"]["questionTopicsList"]["edges"]]
-        print(data)
+        return data
+
+    def get_discussion_posts(self, topic_id):
+        parent = self.client.post(self.graphql, json={
+            "operationName": "DiscussTopic", 
+            "variables": {"topicId": topic_id},
+            "query":
+            """
+            query DiscussTopic($topicId: Int!) {
+                topic(id: $topicId) {
+                    topLevelCommentCount
+                    post {
+                    ...DiscussPost
+                    }
+                }
+                }
+
+                fragment DiscussPost on PostNode {
+                    id
+                    voteCount
+                    content
+                    updationDate
+                    creationDate
+                    author {
+                        username
+                        profile {
+                        reputation
+                        }
+                    }
+                }
+            """
+        }, headers={
+            "Referer": "https://leetcode.com/",
+            "x-csrftoken": self.client.cookies["csrftoken"]
+        })
+        parent = parent.json()
+        comment_cnt = parent["data"]["topic"]["topLevelCommentCount"]
+        parent = parent["data"]["topic"]["post"]
+        parent = {
+            "parent": -1,                                    
+            "id": parent["id"], 
+            "content": parent["content"],
+            "voteCount": parent["voteCount"],
+            "creationDate": parent["creationDate"],
+            "updationDate": parent["updationDate"],
+            "author": parent["author"]["username"],
+            "authorReputation": parent["author"]["profile"]["reputation"],
+            # "solution": {                                    // 若该评论中包含题解
+            #     "language": "java",                            // 题解语言
+            #     "code": "..."                                  // 题解代码
+            # }
+        }
+        print(parent)
+        if (comment_cnt > 0):
+            pass
 
 def main():
     ls = LeetcodeSession(USERNAME, PASSWORD)
     ls.login()
     plist = ls.get_all_problems()
-    ls.get_problem_discussion(plist[0])
+    d = ls.get_problem_discussion(plist[-1])
+    ls.get_discussion_posts(d[0]["topicId"])
     for i in plist:
         pass
 
