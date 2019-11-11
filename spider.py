@@ -31,19 +31,63 @@ class LeetcodeSession():
         all_api = "https://leetcode.com/api/problems/all/"
         problem_list = self.client.get(all_api).json()
         problem_list = problem_list["stat_status_pairs"]
-        problem_list = [i["stat"]["question__title_slug"] for i in problem_list]
-        print(problem_list)
+        problem_list = [(i["stat"]["question_id"], i["stat"]["question__title_slug"]) for i in problem_list]
+        # print(problem_list)
         return problem_list
 
-    def get_problem_discussion(self, problem_name):
+    def get_problem_discussion(self, problem):
+        print("Querying problem " + problem[1])
+        discussion = self.client.post(self.graphql, json={
+            "operationName": "questionTopicsList",
+            "variables": {"questionId": problem[0], "first": 9999999},
+            "query": 
+                """
+                    query questionTopicsList($questionId: String!, $orderBy: TopicSortingOption, $skip: Int, $query: String, $first: Int!, $tags: [String!]) {
+                        questionTopicsList(questionId: $questionId, orderBy: $orderBy, skip: $skip, query: $query, first: $first, tags: $tags) {
+                            ...TopicsList
+                        }
+                    }
 
+                    fragment TopicsList on TopicConnection {
+                        totalNum
+                        edges {
+                            node {
+                                id
+                                title
+                                viewCount
+                                tags {
+                                    name
+                                }
+                                post {
+                                    id
+                                }
+                            }
+                        }
+                    }
+
+                """
+        }, headers={
+            "Referer": "https://leetcode.com/problems/" + problem[1] + "/discuss/",
+            "x-csrftoken": self.client.cookies["csrftoken"]
+        })
+        data = discussion.json()
+        data = [{
+                    "questionId": problem[0],
+                    "topicId": i["node"]["id"],
+                    "title": i["node"]["title"],
+                    "viewCount": i["node"]["viewCount"],
+                    "tags": i["node"]["tags"],
+                    "post": i["node"]["post"]["id"]
+                } for i in data["data"]["questionTopicsList"]["edges"]]
+        print(data)
 
 def main():
     ls = LeetcodeSession(USERNAME, PASSWORD)
     ls.login()
     plist = ls.get_all_problems()
+    ls.get_problem_discussion(plist[0])
     for i in plist:
-
+        pass
 
 if __name__ == "__main__":
     try:
