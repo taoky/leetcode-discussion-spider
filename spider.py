@@ -3,9 +3,11 @@ import math
 from database import database, save_discussions, is_question_done, save_posts
 import itertools
 import time
+from multiprocessing.dummy import Pool
 
 INF = 2**31 - 1
 flatten = itertools.chain.from_iterable
+pool = Pool(processes=8)
 
 class LeetcodeSession():
     def __init__(self, username, password):
@@ -288,7 +290,7 @@ def main():
         discussions = ls.get_problem_discussion(i)
         save_discussions(discussions)
         print("Getting posts of discussions of problem %d." % i[0])
-        posts = [ls.get_discussion_posts(i["topicId"]) for i in discussions]
+        posts = pool.map(ls.get_discussion_posts, [i["topicId"] for i in discussions])
         posts = list(flatten(posts))
         save_posts(posts, i[0])
 
