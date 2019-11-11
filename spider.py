@@ -1,8 +1,10 @@
 import requests
 import math
-from database import database
+from database import database, save_discussions, is_question_done, save_posts
+import itertools
 
 INF = 2**31 - 1
+flatten = itertools.chain.from_iterable
 
 class LeetcodeSession():
     def __init__(self, username, password):
@@ -85,6 +87,7 @@ class LeetcodeSession():
         return data
 
     def get_discussion_posts(self, topic_id):
+        res = []  # FIXME: an ugly impl
         parent = self.client.post(self.graphql, json={
             "operationName": "DiscussTopic", 
             "variables": {"topicId": topic_id},
@@ -130,7 +133,7 @@ class LeetcodeSession():
             "author": parent["author"]["username"],
             "authorReputation": parent["author"]["profile"]["reputation"],
         }
-        # print(parent)
+        res = [parent]
         if (comment_cnt > 0):
             comments = self.client.post(self.graphql, json={
                 "operationName": "discussComments", 
@@ -180,7 +183,7 @@ class LeetcodeSession():
                     "author": i["post"]["author"]["username"],
                     "authorReputation": i["post"]["author"]["profile"]["reputation"],
                 }
-                # print("COMMENT: ", comment)
+                res.append(comment)
                 replies_cnt = i["numChildren"]
                 if replies_cnt > 0:
                     replies = self.client.post(self.graphql, json={
@@ -230,17 +233,29 @@ class LeetcodeSession():
                             "author": j["post"]["author"]["username"],
                             "authorReputation": j["post"]["author"]["profile"]["reputation"],
                         }
-                        # print("REPLY: ", reply)
+                        res.append(reply)
+
+        return res
 
 def main():
     ls = LeetcodeSession(USERNAME, PASSWORD)
     ls.login()
     plist = ls.get_all_problems()
 
-    # d = ls.get_problem_discussion(plist[-1])
-    # ls.get_discussion_posts(d[0]["topicId"])
+    print("Get %d problems." % len(plist))
+    print(database.session)
     for i in plist:
-        pass
+        if is_question_done(i[0]):
+            # if questionId exists
+            # print("Skipped problem %d." % i[0])
+            continue
+        discussions = ls.get_problem_discussion(i)
+        save_discussions(discussions)
+        posts = [ls.get_discussion_posts(i["topicId"]) for i in discussions]
+        posts = list(flatten(posts))
+        save_posts(posts, i[0])
+
+    database.session.close()
 
 if __name__ == "__main__":
     try:
