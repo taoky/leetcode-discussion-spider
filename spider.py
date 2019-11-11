@@ -121,7 +121,8 @@ class LeetcodeSession():
             "x-csrftoken": self.client.cookies["csrftoken"]
         })
         if parent.status_code != 200:
-            print("`parent` returns code %d. Exiting..." % parent.status_code)
+            print("`parent` Response code %d." % parent.status_code)
+            print("Server returns: " + parent.text)
             exit(-1)
         parent = parent.json()
         comment_cnt = parent["data"]["topic"]["topLevelCommentCount"]
@@ -173,6 +174,10 @@ class LeetcodeSession():
                 "Referer": "https://leetcode.com/",
                 "x-csrftoken": self.client.cookies["csrftoken"]
             })
+            if comments.status_code != 200:
+                print("`comments` Response code %d." % comments.status_code)
+                print("Server returns: " + comments.text)
+                exit(-1)
             comments = comments.json()
             comments = comments["data"]["topicComments"]["data"]
             for i in comments:
@@ -223,6 +228,10 @@ class LeetcodeSession():
                         "Referer": "https://leetcode.com/",
                         "x-csrftoken": self.client.cookies["csrftoken"]
                     })
+                    if replies.status_code != 200:
+                        print("`replies` Response code %d." % replies.status_code)
+                        print("Server returns: " + replies.text)
+                        exit(-1)
                     replies = replies.json()
                     replies = replies["data"]["commentReplies"]
                     for j in replies:
