@@ -53,7 +53,7 @@ def main():
                 if j.text is None:
                     # a bug???
                     continue
-                if len(j.text) > len(max_len_element.text):
+                if max_len_element.text is None or len(j.text) > len(max_len_element.text):
                     max_len_element = j
             
             if max_len_element.text is None:
