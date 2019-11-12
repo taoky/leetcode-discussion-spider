@@ -91,11 +91,14 @@ def main():
     workset = database.session.query(Post).filter(Post.solution_code.is_(None)).all()
     # topics = database.session.query(Topic).all()
     for i in progressbar.progressbar(workset):
-        content = i.content.encode('utf-8').decode('unicode-escape')
-        content = markdown.markdown(
-            content,
-            extensions=['fenced_code']
-        )
+        try:
+            content = i.content.encode('utf-8').decode('unicode-escape')
+            content = markdown.markdown(
+                content,
+                extensions=['fenced_code']
+            )
+        except UnicodeDecodeError:
+            continue
         try:
             root = lxml.html.fromstring(content)
         except lxml.etree.ParserError:
