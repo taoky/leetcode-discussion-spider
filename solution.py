@@ -43,23 +43,25 @@ def get_from_language_keyword(content):
 
 
 def pure_guess(element):
-    # returns language
-    guess_dict = guess.scores(element.text)
-    guess_dict = OrderedDict(sorted(guess_dict.items(), key=lambda x: x[1], reverse=True))
-    # print(j, guess_dict)
+    language = None
+    content_list = element.text.split(" ")
+    for i in content_list:
+        language = get_from_language_keyword(i)
+        if i:
+            return language
+    if not language:
+        # returns language
+        guess_dict = guess.scores(element.text)
+        guess_dict = OrderedDict(sorted(guess_dict.items(), key=lambda x: x[1], reverse=True))
+        # print(j, guess_dict)
 
-    guess_result = list(guess_dict.items())[0]
-    guess_index = 0
-    while guess_result[0] in stoplist:
-        guess_index += 1
-        guess_result = list(guess_dict.items())[guess_index]
+        guess_result = list(guess_dict.items())[0]
+        guess_index = 0
+        while guess_result[0] in stoplist:
+            guess_index += 1
+            guess_result = list(guess_dict.items())[guess_index]
 
-    language = guess_result[0]
-    if guess_result[1] < 0.9:
-        # not so confident
-        key_lang = get_from_language_keyword(element.text)
-        if key_lang:
-            language = key_lang
+        language = guess_result[0]
     return language
 
 
@@ -67,8 +69,11 @@ def main():
     cnt = 0
     workset = database.session.query(Post).filter(Post.solution_code.is_(None)).all()
     for i in progressbar.progressbar(workset):
+        content = i.content.encode('utf-8').decode('unicode-escape')
+        if len(content) == 0:
+            continue
         content = markdown.markdown(
-            i.content.encode('utf-8').decode('unicode-escape'),
+            content,
             extensions=['fenced_code']
         )
         root = lxml.html.fromstring(content)

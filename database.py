@@ -37,7 +37,7 @@ Base.metadata.create_all(engine)
 class Database():
     def __init__(self):
         self.Session = sessionmaker(bind=engine)
-        self.session = self.Session()
+        self.session = self.Session(expire_on_commit=False)
 
 database = Database()
 
