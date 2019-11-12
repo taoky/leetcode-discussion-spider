@@ -1,16 +1,18 @@
 from database import database, Post, Topic
 import markdown
-import lxml.html
+import lxml, lxml.html
 import progressbar
-from guesslang import Guess  # pip install git+https://github.com/yoeo/guesslang.git
+# from guesslang import Guess  # pip install git+https://github.com/yoeo/guesslang.git
 from collections import OrderedDict
 
-guess = Guess()
+# guess = Guess()
 
 stoplist = ["Objective-C", "Markdown", "HTML", "Erlang", "Perl", "CSS"]
 keyword_dict = OrderedDict({
     'kotlin': 'Kotlin',
     'python': 'Python',
+    'python3': 'Python',
+    'python2': 'Python',
     'rust': 'Rust',
     'scala': 'Scala',
     'swift': 'Swift',
@@ -24,6 +26,7 @@ keyword_dict = OrderedDict({
     'cpp': 'C++',
     'cs': 'C#',
     'golang': 'Go',
+    'csharp': 'C#',
     'go': 'Go',
     'sh': 'Bash',
     'shell': 'Bash',
@@ -51,33 +54,52 @@ def pure_guess(element):
         if language:
             return language
     if not language:
+        return None
         # returns language
-        guess_dict = guess.scores(element.text)
-        guess_dict = OrderedDict(sorted(guess_dict.items(), key=lambda x: x[1], reverse=True))
-        # print(j, guess_dict)
+        # guess_dict = guess.scores(element.text)
+        # guess_dict = OrderedDict(sorted(guess_dict.items(), key=lambda x: x[1], reverse=True))
+        # # # print(j, guess_dict)
+        # #
+        # guess_result = list(guess_dict.items())[0]
+        # guess_index = 0
+        # while guess_result[0] in stoplist:
+        #     guess_index += 1
+        #     guess_result = list(guess_dict.items())[guess_index]
+        #
+        # language = guess_result[0]
+    # return language
 
-        guess_result = list(guess_dict.items())[0]
-        guess_index = 0
-        while guess_result[0] in stoplist:
-            guess_index += 1
-            guess_result = list(guess_dict.items())[guess_index]
-
-        language = guess_result[0]
+def tags_and_title(topic):
+    tags = topic.tags[1:-1].split(",")
+    language = None
+    for j in tags:
+        l = get_from_language_keyword(j)
+        if l:
+            language = l
+            break
+    if not language:
+        title = topic.title.split(" ")
+        for j in title:
+            l = get_from_language_keyword(j)
+            if l:
+                language = l
+                break
     return language
-
 
 def main():
     cnt = 0
-    workset = database.session.query(Post).filter(Post.solution_language.is_(None)).all()
+    workset = database.session.query(Post).filter(Post.solution_code.is_(None)).all()
+    # topics = database.session.query(Topic).all()
     for i in progressbar.progressbar(workset):
         content = i.content.encode('utf-8').decode('unicode-escape')
-        if len(content) == 0:
-            continue
         content = markdown.markdown(
             content,
             extensions=['fenced_code']
         )
-        root = lxml.html.fromstring(content)
+        try:
+            root = lxml.html.fromstring(content)
+        except lxml.etree.ParserError:
+            continue
         code_blocks = root.xpath('//pre/code')
         if not code_blocks:
             continue
@@ -104,20 +126,12 @@ def main():
                     break
             elif database.session.query(Topic).filter_by(post=i.id).count():
                 topic = database.session.query(Topic).filter_by(post=i.id).one()
-                tags = topic.tags[1:-1].split(",")
-                language = None
-                for j in tags:
-                    l = get_from_language_keyword(j)
-                    if l:
-                        language = l
-                        break
+                language = tags_and_title(topic)
                 if not language:
-                    title = topic.title.split(" ")
-                    for j in title:
-                        l = get_from_language_keyword(j)
-                        if l:
-                            language = l
-                            break
+                    language = pure_guess(max_len_element)
+            elif i.parent != -1 and database.session.query(Topic).filter_by(post=i.parent).count():
+                topic = database.session.query(Topic).filter_by(post=i.parent).one()
+                language = tags_and_title(topic)
                 if not language:
                     language = pure_guess(max_len_element)
             else:
