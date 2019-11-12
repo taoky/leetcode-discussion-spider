@@ -22,6 +22,7 @@ keyword_dict = OrderedDict({
     'c#': 'C#',
     'c++': 'C++',
     'cpp': 'C++',
+    'cs': 'C#',
     'golang': 'Go',
     'go': 'Go',
     'sh': 'Bash',
@@ -47,7 +48,7 @@ def pure_guess(element):
     content_list = element.text.split(" ")
     for i in content_list:
         language = get_from_language_keyword(i)
-        if i:
+        if language:
             return language
     if not language:
         # returns language
@@ -67,7 +68,7 @@ def pure_guess(element):
 
 def main():
     cnt = 0
-    workset = database.session.query(Post).filter(Post.solution_code.is_(None)).all()
+    workset = database.session.query(Post).filter(Post.solution_language.is_(None)).all()
     for i in progressbar.progressbar(workset):
         content = i.content.encode('utf-8').decode('unicode-escape')
         if len(content) == 0:
