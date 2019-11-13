@@ -6,7 +6,7 @@ Webinfo 开放实验，要求见 https://git.bdaa.pro/yxonic/data-specification/
 
 ## 说明
 
-`spider.py`: 从 Leetcode 中爬取内容，支持有限的从断点继续爬取的功能。用户名和密码需要放在 `config.py` 中。
+`spider.py`: 从 LeetCode 中爬取内容，支持有限的从断点继续爬取的功能。用户名和密码需要放在 `config.py` 中。
 
 `database.py`: 读写 SQLite 数据库，实现（相比直接读写文件而言）更好的数据处理。
 
