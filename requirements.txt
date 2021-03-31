@@ -1,5 +1,5 @@
 guesslang==0.9.4  # pip install git+https://github.com/yoeo/guesslang.git
-lxml==4.4.1
+lxml==4.6.3
 Markdown==3.1.1
 progressbar2==3.47.0
 requests==2.22.0
